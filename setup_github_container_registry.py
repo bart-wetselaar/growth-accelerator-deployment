@@ -1,22 +1,18 @@
 #!/usr/bin/env python3
 """
-Setup GitHub Container Registry and Push Docker Image
-
-This script:
-1. Authenticates with GitHub
-2. Creates a Personal Access Token with package permissions if needed
-3. Builds and pushes the Docker image to GitHub Container Registry
+Setup GitHub Container Registry for Growth Accelerator Staffing Platform.
+This script configures GitHub Container Registry to store and manage Docker images.
 """
 
 import argparse
-import base64
-import getpass
 import json
 import os
-import subprocess
-import sys
+import re
 import requests
-from typing import Dict, List, Optional, Tuple
+import sys
+from base64 import b64encode
+from getpass import getpass
+from datetime import datetime
 
 class Colors:
     HEADER = '\033[95m'
@@ -30,7 +26,7 @@ class Colors:
     UNDERLINE = '\033[4m'
 
 def print_header(message):
-    print(f"{Colors.BLUE}{Colors.BOLD}==== {message} ===={Colors.ENDC}")
+    print(f"{Colors.HEADER}{message}{Colors.ENDC}")
 
 def print_success(message):
     print(f"{Colors.GREEN}✓ {message}{Colors.ENDC}")
@@ -39,233 +35,104 @@ def print_warning(message):
     print(f"{Colors.YELLOW}⚠️ {message}{Colors.ENDC}")
 
 def print_error(message):
-    print(f"{Colors.RED}Error: {message}{Colors.ENDC}")
+    print(f"{Colors.RED}✘ {message}{Colors.ENDC}")
 
-def run_command(command: str) -> Optional[str]:
-    """Run a shell command and return the output"""
-    try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            check=True,
-            capture_output=True,
-            text=True
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        print_error(f"Command failed: {e}")
-        if e.stderr:
-            print(e.stderr)
-        return None
-
-def get_github_username() -> str:
-    """Get GitHub username from user input"""
-    return input("GitHub Username: ").strip()
-
-def get_github_token() -> str:
-    """Get GitHub token with default from environment or user input"""
-    default_token = os.environ.get("GITHUB_TOKEN", "")
-    if default_token:
-        use_default = input(f"Use token from environment variable GITHUB_TOKEN? [Y/n]: ").strip().lower()
-        if use_default in ["", "y", "yes"]:
-            return default_token
+def get_github_token(args):
+    """Get GitHub personal access token from args or prompt."""
+    token = args.token
+    if not token:
+        token = os.environ.get("GITHUB_TOKEN")
     
-    return getpass.getpass("GitHub Personal Access Token: ").strip()
+    if not token:
+        try:
+            token = getpass("Enter your GitHub Personal Access Token: ")
+        except (KeyboardInterrupt, EOFError):
+            print("\nOperation cancelled.")
+            sys.exit(1)
+    
+    if not token:
+        print_error("GitHub token is required.")
+        sys.exit(1)
+    
+    return token
 
-def verify_github_token(username: str, token: str) -> bool:
-    """Verify GitHub token by making a simple API request"""
+def get_github_username(token):
+    """Get GitHub username from token."""
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
     }
     
-    try:
-        response = requests.get(f"https://api.github.com/users/{username}", headers=headers)
-        if response.status_code == 200:
-            print_success("GitHub token verified successfully")
-            return True
-        else:
-            print_error(f"Failed to verify GitHub token: {response.status_code} {response.reason}")
-            return False
-    except Exception as e:
-        print_error(f"Error verifying GitHub token: {e}")
-        return False
+    response = requests.get("https://api.github.com/user", headers=headers)
+    
+    if response.status_code == 200:
+        return response.json()["login"]
+    else:
+        print_error(f"Failed to get GitHub username: {response.status_code} {response.text}")
+        sys.exit(1)
 
-def check_token_permissions(token: str) -> Dict[str, bool]:
-    """Check if the token has the required permissions for package operations"""
+def create_or_update_docker_workflow(token, owner, repo, image_name=None):
+    """Create or update GitHub Actions workflow for Docker build and push."""
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
     }
     
-    permissions = {
-        "repo": False,
-        "write:packages": False,
-        "read:packages": False,
-        "delete:packages": False
-    }
+    # Default image name is the repo name if not provided
+    if not image_name:
+        image_name = repo.lower()
     
-    try:
-        # Get rate limit info to check authentication and scopes
-        response = requests.get("https://api.github.com/rate_limit", headers=headers)
-        
-        if response.status_code != 200:
-            print_error(f"Failed to check token permissions: {response.status_code} {response.reason}")
-            return permissions
-        
-        # Parse X-OAuth-Scopes header to check permissions
-        scopes = response.headers.get("X-OAuth-Scopes", "").split(", ")
-        
-        for scope in scopes:
-            if scope == "repo":
-                permissions["repo"] = True
-            elif scope == "write:packages":
-                permissions["write:packages"] = True
-            elif scope == "read:packages":
-                permissions["read:packages"] = True
-            elif scope == "delete:packages":
-                permissions["delete:packages"] = True
-            elif scope == "packages":  # Full packages scope (includes all package permissions)
-                permissions["write:packages"] = True
-                permissions["read:packages"] = True
-                permissions["delete:packages"] = True
-        
-        return permissions
-    except Exception as e:
-        print_error(f"Error checking token permissions: {e}")
-        return permissions
-
-def docker_login(username: str, token: str) -> bool:
-    """Login to GitHub Container Registry with Docker"""
-    print_header("LOGGING IN TO GITHUB CONTAINER REGISTRY")
+    workflow_path = ".github/workflows/docker-build.yml"
     
-    # Check if Docker is installed
-    if not run_command("docker --version"):
-        print_error("Docker is not installed or not in the PATH")
-        return False
-    
-    # Login to GitHub Container Registry
-    print(f"Logging in to GitHub Container Registry as {username}...")
-    
-    # Write token to file to avoid showing it in process list
-    token_file = ".ghcr_token"
-    try:
-        with open(token_file, "w") as f:
-            f.write(token)
-        
-        command = f"cat {token_file} | docker login ghcr.io -u {username} --password-stdin"
-        result = run_command(command)
-        
-        # Remove token file
-        os.remove(token_file)
-        
-        if result and "Login Succeeded" in result:
-            print_success("Login to GitHub Container Registry successful")
-            return True
-        else:
-            print_error("Failed to login to GitHub Container Registry")
-            return False
-    except Exception as e:
-        print_error(f"Error during GitHub Container Registry login: {e}")
-        if os.path.exists(token_file):
-            os.remove(token_file)
-        return False
-
-def build_docker_image(username: str, image_name: str, tag: str = "latest") -> bool:
-    """Build Docker image with the correct tag for GitHub Container Registry"""
-    print_header("BUILDING DOCKER IMAGE")
-    
-    full_image_name = f"ghcr.io/{username}/{image_name}:{tag}"
-    print(f"Building Docker image: {full_image_name}")
-    
-    # Check if Dockerfile exists
-    if not os.path.exists("Dockerfile"):
-        print_error("Dockerfile not found in the current directory")
-        return False
-    
-    # Build the Docker image
-    command = f"docker build -t {full_image_name} ."
-    result = run_command(command)
-    
-    if result is not None:
-        print_success(f"Docker image built successfully: {full_image_name}")
-        return True
-    else:
-        print_error("Failed to build Docker image")
-        return False
-
-def push_docker_image(username: str, image_name: str, tag: str = "latest") -> bool:
-    """Push Docker image to GitHub Container Registry"""
-    print_header("PUSHING DOCKER IMAGE TO GITHUB CONTAINER REGISTRY")
-    
-    full_image_name = f"ghcr.io/{username}/{image_name}:{tag}"
-    print(f"Pushing Docker image: {full_image_name}")
-    
-    # Push the Docker image
-    command = f"docker push {full_image_name}"
-    result = run_command(command)
-    
-    if result is not None:
-        print_success(f"Docker image pushed successfully: {full_image_name}")
-        return True
-    else:
-        print_error("Failed to push Docker image")
-        return False
-
-def setup_github_workflow(username: str, image_name: str) -> bool:
-    """Set up GitHub Actions workflow for automatic Docker builds"""
-    print_header("SETTING UP GITHUB ACTIONS WORKFLOW")
-    
-    workflows_dir = ".github/workflows"
-    os.makedirs(workflows_dir, exist_ok=True)
-    
-    workflow_file = f"{workflows_dir}/docker-build.yml"
-    
-    if os.path.exists(workflow_file):
-        overwrite = input(f"GitHub Actions workflow file already exists at {workflow_file}. Overwrite? [y/N]: ").strip().lower()
-        if overwrite not in ["y", "yes"]:
-            print_warning("Skipping GitHub Actions workflow setup")
-            return False
-    
-    print(f"Creating GitHub Actions workflow file: {workflow_file}")
+    # Check if workflow already exists
+    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{workflow_path}"
+    response = requests.get(url, headers=headers)
     
     workflow_content = f"""name: Build and Push Docker Image
 
 on:
   push:
     branches: [ main ]
-    tags: [ 'v*' ]
+    paths:
+      - 'Dockerfile'
+      - '.github/workflows/docker-build.yml'
+      - 'docker-entrypoint.sh'
   workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{{{ github.repository }}}}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Log in to GitHub Container Registry
+      - name: Log in to the Container registry
         uses: docker/login-action@v2
         with:
-          registry: ghcr.io
-          username: ${{{{ github.repository_owner }}}}
+          registry: ${{{{ env.REGISTRY }}}}
+          username: ${{{{ github.actor }}}}
           password: ${{{{ secrets.GITHUB_TOKEN }}}}
 
-      - name: Extract metadata for Docker
+      - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ghcr.io/${{{{ github.repository_owner }}}}/{image_name}
+          images: ${{{{ env.REGISTRY }}}}/${{{{ env.IMAGE_NAME }}}}
           tags: |
+            type=sha,format=long
             type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{{{version}}}}
-            type=semver,pattern={{{{major}}}}.{{{{minor}}}}
-            type=sha
-            latest
+            type=raw,value=latest,enable=${{{{ github.ref == format('refs/heads/{{0}}', 'main') }}}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
@@ -278,147 +145,180 @@ jobs:
           cache-to: type=gha,mode=max
 """
     
-    try:
-        with open(workflow_file, "w") as f:
-            f.write(workflow_content)
-        print_success(f"GitHub Actions workflow file created: {workflow_file}")
-        return True
-    except Exception as e:
-        print_error(f"Failed to create GitHub Actions workflow file: {e}")
+    if response.status_code == 200:
+        # Update existing workflow
+        sha = response.json()["sha"]
+        url = f"https://api.github.com/repos/{owner}/{repo}/contents/{workflow_path}"
+        payload = {
+            "message": "Update Docker build workflow",
+            "content": b64encode(workflow_content.encode()).decode(),
+            "sha": sha
+        }
+        
+        response = requests.put(url, headers=headers, json=payload)
+        
+        if response.status_code == 200:
+            print_success(f"Updated GitHub Actions workflow at {workflow_path}")
+        else:
+            print_error(f"Failed to update workflow: {response.status_code} {response.text}")
+            return False
+    elif response.status_code == 404:
+        # Create new workflow
+        
+        # First ensure the .github/workflows directory exists
+        directory_parts = workflow_path.split('/')
+        current_path = ""
+        
+        for i in range(len(directory_parts) - 1):
+            current_path = '/'.join(directory_parts[:i+1])
+            check_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{current_path}"
+            check_response = requests.get(check_url, headers=headers)
+            
+            if check_response.status_code == 404:
+                # Create directory by creating a .gitkeep file
+                create_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{current_path}/.gitkeep"
+                create_payload = {
+                    "message": f"Create {current_path} directory",
+                    "content": b64encode(b"").decode()
+                }
+                
+                create_response = requests.put(create_url, headers=headers, json=create_payload)
+                
+                if create_response.status_code != 201:
+                    print_error(f"Failed to create directory {current_path}: {create_response.status_code} {create_response.text}")
+                    return False
+                else:
+                    print_success(f"Created {current_path} directory")
+        
+        # Now create the workflow file
+        url = f"https://api.github.com/repos/{owner}/{repo}/contents/{workflow_path}"
+        payload = {
+            "message": "Add Docker build workflow",
+            "content": b64encode(workflow_content.encode()).decode()
+        }
+        
+        response = requests.put(url, headers=headers, json=payload)
+        
+        if response.status_code == 201:
+            print_success(f"Created GitHub Actions workflow at {workflow_path}")
+        else:
+            print_error(f"Failed to create workflow: {response.status_code} {response.text}")
+            return False
+    else:
+        print_error(f"Failed to check workflow existence: {response.status_code} {response.text}")
         return False
-
-def save_credentials(username: str, token: str, filename="github_credentials.json") -> bool:
-    """Save GitHub credentials to a file"""
-    print_header("SAVING GITHUB CREDENTIALS")
     
-    credentials = {
-        "username": username,
-        "token": token
+    return True
+
+def enable_github_packages(token, owner, repo):
+    """Enable GitHub Packages for the repository."""
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
     }
     
-    try:
-        with open(filename, "w") as f:
-            json.dump(credentials, f, indent=2)
-        print_success(f"GitHub credentials saved to {filename}")
-        return True
-    except Exception as e:
-        print_error(f"Failed to save GitHub credentials: {e}")
+    # Check repository visibility
+    url = f"https://api.github.com/repos/{owner}/{repo}"
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code != 200:
+        print_error(f"Failed to get repository information: {response.status_code} {response.text}")
         return False
+    
+    repo_info = response.json()
+    is_private = repo_info.get("private", False)
+    
+    if is_private:
+        print_warning("Repository is private. You'll need to use a personal access token with packages:read scope to pull images.")
+        
+        # Update package visibility to make it accessible
+        # Note: This API is still in preview
+        headers["Accept"] = "application/vnd.github.package-deletes-preview+json"
+        package_url = f"https://api.github.com/orgs/{owner}/packages/container/{repo}/visibility"
+        package_payload = {"visibility": "private"}
+        
+        package_response = requests.patch(package_url, headers=headers, json=package_payload)
+        
+        if package_response.status_code in (200, 204):
+            print_success("Updated package visibility settings")
+        else:
+            print_warning(f"Could not update package visibility: {package_response.status_code} {package_response.text}")
+            print_warning("You may need to manually configure package settings on GitHub")
+    else:
+        print_success("Repository is public. Docker images will be publicly available.")
+    
+    return True
+
+def print_usage_instructions(owner, repo_name):
+    """Print usage instructions for GitHub Container Registry."""
+    print_header("\n==== USAGE INSTRUCTIONS ====")
+    
+    print(f"\nTo pull the Docker image from the GitHub Container Registry:")
+    print(f"docker pull ghcr.io/{owner.lower()}/{repo_name.lower()}:latest")
+    
+    print(f"\nTo run the Docker container:")
+    print(f"docker run -p 5000:5000 ghcr.io/{owner.lower()}/{repo_name.lower()}:latest")
+    
+    print(f"\nTo use with docker-compose:")
+    print("```yaml")
+    print("version: '3.8'")
+    print("services:")
+    print("  app:")
+    print(f"    image: ghcr.io/{owner.lower()}/{repo_name.lower()}:latest")
+    print("    ports:")
+    print("      - '5000:5000'")
+    print("    environment:")
+    print("      - DATABASE_URL=postgresql://user:password@db:5432/appdb")
+    print("    depends_on:")
+    print("      - db")
+    print("  db:")
+    print("    image: postgres:14")
+    print("    environment:")
+    print("      - POSTGRES_USER=user")
+    print("      - POSTGRES_PASSWORD=password")
+    print("      - POSTGRES_DB=appdb")
+    print("    volumes:")
+    print("      - postgres_data:/var/lib/postgresql/data")
+    print("volumes:")
+    print("  postgres_data:")
+    print("```")
+    
+    print("\nTo use with Azure App Service (container setting):")
+    print(f"Container Registry: ghcr.io")
+    print(f"Image: {owner.lower()}/{repo_name.lower()}")
+    print(f"Tag: latest")
+    print(f"Full image URL: ghcr.io/{owner.lower()}/{repo_name.lower()}:latest")
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Setup GitHub Container Registry and push Docker image"
-    )
-    parser.add_argument(
-        "--username",
-        help="GitHub username"
-    )
-    parser.add_argument(
-        "--token",
-        help="GitHub Personal Access Token with package permissions"
-    )
-    parser.add_argument(
-        "--image-name",
-        default="growth-accelerator-staffing",
-        help="Docker image name (default: growth-accelerator-staffing)"
-    )
-    parser.add_argument(
-        "--tag",
-        default="latest",
-        help="Docker image tag (default: latest)"
-    )
-    parser.add_argument(
-        "--skip-build",
-        action="store_true",
-        help="Skip building the Docker image"
-    )
-    parser.add_argument(
-        "--skip-push",
-        action="store_true",
-        help="Skip pushing the Docker image"
-    )
-    parser.add_argument(
-        "--setup-workflow",
-        action="store_true",
-        help="Set up GitHub Actions workflow for automatic builds"
-    )
-    parser.add_argument(
-        "--save-credentials",
-        action="store_true",
-        help="Save GitHub credentials to a file"
-    )
-    parser.add_argument(
-        "--credentials-file",
-        default="github_credentials.json",
-        help="File to save GitHub credentials (default: github_credentials.json)"
-    )
-    
+    parser = argparse.ArgumentParser(description="Setup GitHub Container Registry for Growth Accelerator Staffing Platform")
+    parser.add_argument("--token", help="GitHub Personal Access Token with repo and packages scope")
+    parser.add_argument("--repo", default="growth-accelerator-deployment", help="GitHub repository name")
+    parser.add_argument("--image-name", help="Docker image name (defaults to repo name)")
     args = parser.parse_args()
     
-    print_header("GITHUB CONTAINER REGISTRY SETUP")
-    
-    # Get GitHub username
-    username = args.username
-    if not username:
-        username = get_github_username()
+    print_header("==== GITHUB CONTAINER REGISTRY SETUP ====\n")
     
     # Get GitHub token
-    token = args.token
-    if not token:
-        token = get_github_token()
+    token = get_github_token(args)
     
-    # Verify GitHub token
-    if not verify_github_token(username, token):
+    # Get GitHub username
+    username = get_github_username(token)
+    print_success(f"Authenticated as GitHub user: {username}")
+    
+    # Create or update Docker workflow
+    success = create_or_update_docker_workflow(token, username, args.repo, args.image_name)
+    
+    if success:
+        # Enable GitHub Packages
+        success = enable_github_packages(token, username, args.repo)
+    
+    if success:
+        print_success("GitHub Container Registry setup complete!")
+        print_usage_instructions(username, args.repo)
+    else:
+        print_error("GitHub Container Registry setup failed.")
         return 1
     
-    # Check token permissions
-    permissions = check_token_permissions(token)
-    required_permissions = ["write:packages", "read:packages"]
-    missing_permissions = [p for p in required_permissions if not permissions.get(p)]
-    
-    if missing_permissions:
-        print_warning(f"Token is missing required permissions: {', '.join(missing_permissions)}")
-        print("Please create a new token with the following permissions:")
-        print("  - write:packages")
-        print("  - read:packages")
-        continue_anyway = input("Continue anyway? [y/N]: ").strip().lower()
-        if continue_anyway not in ["y", "yes"]:
-            return 1
-    
-    # Login to GitHub Container Registry
-    if not docker_login(username, token):
-        return 1
-    
-    # Build Docker image
-    if not args.skip_build:
-        if not build_docker_image(username, args.image_name, args.tag):
-            return 1
-    
-    # Push Docker image
-    if not args.skip_push:
-        if not push_docker_image(username, args.image_name, args.tag):
-            return 1
-    
-    # Set up GitHub Actions workflow
-    if args.setup_workflow:
-        setup_github_workflow(username, args.image_name)
-    
-    # Save credentials
-    if args.save_credentials:
-        save_credentials(username, token, args.credentials_file)
-    
-    # Print deployment information
-    print_header("DEPLOYMENT INFORMATION")
-    print(f"Docker Image: ghcr.io/{username}/{args.image_name}:{args.tag}")
-    print("\nYou can use this image in your Azure deployment:")
-    print(f"python deploy_to_azure_simplified.py \\")
-    print(f"  # ...other parameters \\")
-    print(f"  --github-username \"{username}\" \\")
-    print(f"  --github-token \"{token}\" \\")
-    print(f"  --container-image \"ghcr.io/{username}/{args.image_name}:{args.tag}\" \\")
-    print(f"  # ...other parameters")
-    
-    print_success("GitHub Container Registry setup completed successfully")
     return 0
 
 if __name__ == "__main__":

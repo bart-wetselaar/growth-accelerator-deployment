@@ -1,0 +1,408 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "defaultValue": "growth-accelerator-staffing",
+      "metadata": {
+        "description": "The name of the web app that you wish to create."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "westeurope",
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    },
+    "customDomainName": {
+      "type": "string",
+      "defaultValue": "app.growthaccelerator.nl",
+      "metadata": {
+        "description": "The custom domain name to use for the web app."
+      }
+    },
+    "dockerImageName": {
+      "type": "string",
+      "defaultValue": "ghcr.io/growthaccelerator/growth-accelerator-staffing:latest",
+      "metadata": {
+        "description": "The container image to deploy."
+      }
+    },
+    "dockerRegistryUrl": {
+      "type": "string",
+      "defaultValue": "https://ghcr.io",
+      "metadata": {
+        "description": "The container registry URL."
+      }
+    },
+    "dockerRegistryUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "The container registry username."
+      }
+    },
+    "dockerRegistryPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The container registry password."
+      }
+    },
+    "databaseAdminLogin": {
+      "type": "string",
+      "defaultValue": "dbadmin",
+      "metadata": {
+        "description": "The PostgreSQL administrator login"
+      }
+    },
+    "databaseAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The PostgreSQL administrator password."
+      }
+    },
+    "databaseName": {
+      "type": "string",
+      "defaultValue": "growth_accelerator",
+      "metadata": {
+        "description": "The name of the database to create."
+      }
+    },
+    "workableApiKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The Workable API key for the application."
+      }
+    },
+    "linkedinClientId": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The LinkedIn Client ID for the application."
+      }
+    },
+    "linkedinClientSecret": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The LinkedIn Client Secret for the application."
+      }
+    },
+    "squarespaceApiKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The Squarespace API key for the application."
+      }
+    },
+    "sessionSecret": {
+      "type": "securestring",
+      "defaultValue": "[newGuid()]",
+      "metadata": {
+        "description": "The session secret for the application."
+      }
+    },
+    "appServicePlanSku": {
+      "type": "string",
+      "defaultValue": "P1v2",
+      "allowedValues": [
+        "B1",
+        "B2",
+        "B3",
+        "S1",
+        "S2",
+        "S3",
+        "P1v2",
+        "P2v2",
+        "P3v2"
+      ],
+      "metadata": {
+        "description": "The SKU of the App Service Plan."
+      }
+    },
+    "enableCdn": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Whether to enable Azure CDN for the web app."
+      }
+    }
+  },
+  "variables": {
+    "databaseServerName": "[concat(parameters('appName'), '-db')]",
+    "appServicePlanName": "[concat(parameters('appName'), '-plan')]",
+    "appInsightsName": "[concat(parameters('appName'), '-insights')]",
+    "cdnProfileName": "[concat(parameters('appName'), '-cdn')]",
+    "cdnEndpointName": "[concat(parameters('appName'), '-endpoint')]",
+    "databaseSkuName": "GP_Gen5_2",
+    "databaseSkuTier": "GeneralPurpose",
+    "databaseVersion": "12",
+    "databaseStorageMB": 51200,
+    "databaseBackupRetentionDays": 7,
+    "postgresConnectionString": "[concat('postgresql://', parameters('databaseAdminLogin'), ':', parameters('databaseAdminPassword'), '@', variables('databaseServerName'), '.postgres.database.azure.com:5432/', parameters('databaseName'), '?sslmode=require')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.DBforPostgreSQL/servers",
+      "apiVersion": "2017-12-01",
+      "name": "[variables('databaseServerName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[variables('databaseSkuName')]",
+        "tier": "[variables('databaseSkuTier')]",
+        "capacity": 2,
+        "family": "Gen5"
+      },
+      "properties": {
+        "version": "[variables('databaseVersion')]",
+        "administratorLogin": "[parameters('databaseAdminLogin')]",
+        "administratorLoginPassword": "[parameters('databaseAdminPassword')]",
+        "storageProfile": {
+          "storageMB": "[variables('databaseStorageMB')]",
+          "backupRetentionDays": "[variables('databaseBackupRetentionDays')]",
+          "geoRedundantBackup": "Disabled",
+          "storageAutogrow": "Enabled"
+        },
+        "sslEnforcement": "Enabled",
+        "minimalTlsVersion": "TLS1_2"
+      },
+      "resources": [
+        {
+          "type": "firewallRules",
+          "apiVersion": "2017-12-01",
+          "name": "AllowAllAzureIPs",
+          "dependsOn": [
+            "[resourceId('Microsoft.DBforPostgreSQL/servers', variables('databaseServerName'))]"
+          ],
+          "properties": {
+            "startIpAddress": "0.0.0.0",
+            "endIpAddress": "0.0.0.0"
+          }
+        },
+        {
+          "type": "databases",
+          "apiVersion": "2017-12-01",
+          "name": "[parameters('databaseName')]",
+          "dependsOn": [
+            "[resourceId('Microsoft.DBforPostgreSQL/servers', variables('databaseServerName'))]"
+          ],
+          "properties": {
+            "charset": "utf8",
+            "collation": "en_US.utf8"
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[variables('appInsightsName')]",
+      "location": "[parameters('location')]",
+      "kind": "web",
+      "properties": {
+        "Application_Type": "web",
+        "Flow_Type": "Bluefield",
+        "Request_Source": "rest"
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2021-03-01",
+      "name": "[variables('appServicePlanName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('appServicePlanSku')]"
+      },
+      "kind": "linux",
+      "properties": {
+        "reserved": true
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2021-03-01",
+      "name": "[parameters('appName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+        "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]",
+        "[resourceId('Microsoft.DBforPostgreSQL/servers/databases', variables('databaseServerName'), parameters('databaseName'))]"
+      ],
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+        "httpsOnly": true,
+        "siteConfig": {
+          "linuxFxVersion": "[concat('DOCKER|', parameters('dockerImageName'))]",
+          "http20Enabled": true,
+          "minTlsVersion": "1.2",
+          "ftpsState": "Disabled",
+          "healthCheckPath": "/health",
+          "appSettings": [
+            {
+              "name": "WEBSITES_ENABLE_APP_SERVICE_STORAGE",
+              "value": "false"
+            },
+            {
+              "name": "WEBSITE_HOSTNAME",
+              "value": "[parameters('customDomainName')]"
+            },
+            {
+              "name": "DOCKER_REGISTRY_SERVER_URL",
+              "value": "[parameters('dockerRegistryUrl')]"
+            },
+            {
+              "name": "DOCKER_REGISTRY_SERVER_USERNAME",
+              "value": "[parameters('dockerRegistryUsername')]"
+            },
+            {
+              "name": "DOCKER_REGISTRY_SERVER_PASSWORD",
+              "value": "[parameters('dockerRegistryPassword')]"
+            },
+            {
+              "name": "DATABASE_URL",
+              "value": "[variables('postgresConnectionString')]"
+            },
+            {
+              "name": "WORKABLE_API_KEY",
+              "value": "[parameters('workableApiKey')]"
+            },
+            {
+              "name": "LINKEDIN_CLIENT_ID",
+              "value": "[parameters('linkedinClientId')]"
+            },
+            {
+              "name": "LINKEDIN_CLIENT_SECRET",
+              "value": "[parameters('linkedinClientSecret')]"
+            },
+            {
+              "name": "SQUARESPACE_API_KEY",
+              "value": "[parameters('squarespaceApiKey')]"
+            },
+            {
+              "name": "SESSION_SECRET",
+              "value": "[parameters('sessionSecret')]"
+            },
+            {
+              "name": "PORT",
+              "value": "8000"
+            },
+            {
+              "name": "WEBSITES_PORT",
+              "value": "8000"
+            },
+            {
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName'))).ConnectionString]"
+            },
+            {
+              "name": "WORKERS",
+              "value": "4"
+            },
+            {
+              "name": "TIMEOUT",
+              "value": "120"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "condition": "[parameters('enableCdn')]",
+      "type": "Microsoft.Cdn/profiles",
+      "apiVersion": "2020-09-01",
+      "name": "[variables('cdnProfileName')]",
+      "location": "global",
+      "sku": {
+        "name": "Standard_Microsoft"
+      },
+      "resources": [
+        {
+          "condition": "[parameters('enableCdn')]",
+          "type": "endpoints",
+          "apiVersion": "2020-09-01",
+          "name": "[variables('cdnEndpointName')]",
+          "location": "global",
+          "dependsOn": [
+            "[resourceId('Microsoft.Cdn/profiles', variables('cdnProfileName'))]",
+            "[resourceId('Microsoft.Web/sites', parameters('appName'))]"
+          ],
+          "properties": {
+            "originHostHeader": "[concat(parameters('appName'), '.azurewebsites.net')]",
+            "isHttpAllowed": false,
+            "isHttpsAllowed": true,
+            "queryStringCachingBehavior": "IgnoreQueryString",
+            "contentTypesToCompress": [
+              "application/javascript",
+              "application/json",
+              "text/css",
+              "text/html",
+              "text/javascript"
+            ],
+            "isCompressionEnabled": true,
+            "origins": [
+              {
+                "name": "appservice",
+                "properties": {
+                  "hostName": "[concat(parameters('appName'), '.azurewebsites.net')]",
+                  "httpPort": 80,
+                  "httpsPort": 443
+                }
+              }
+            ],
+            "deliveryPolicy": {
+              "rules": [
+                {
+                  "name": "EnforceHttps",
+                  "order": 1,
+                  "conditions": [
+                    {
+                      "name": "RequestScheme",
+                      "parameters": {
+                        "matchValues": [
+                          "HTTP"
+                        ],
+                        "operator": "Equal",
+                        "negateCondition": false,
+                        "transforms": []
+                      }
+                    }
+                  ],
+                  "actions": [
+                    {
+                      "name": "UrlRedirect",
+                      "parameters": {
+                        "redirectType": "Found",
+                        "destinationProtocol": "Https"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "webAppUrl": {
+      "type": "string",
+      "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', parameters('appName'))).defaultHostName)]"
+    },
+    "appInsightsKey": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName'))).InstrumentationKey]"
+    },
+    "cdnUrl": {
+      "condition": "[parameters('enableCdn')]",
+      "type": "string",
+      "value": "[if(parameters('enableCdn'), concat('https://', reference(resourceId('Microsoft.Cdn/profiles/endpoints', variables('cdnProfileName'), variables('cdnEndpointName'))).hostName), 'CDN not enabled')]"
+    },
+    "databaseServerFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.DBforPostgreSQL/servers', variables('databaseServerName'))).fullyQualifiedDomainName]"
+    },
+    "customDomainVerificationId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', parameters('appName'))).customDomainVerificationId]"
+    }
+  }
+}

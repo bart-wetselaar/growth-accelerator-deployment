@@ -31,83 +31,103 @@ def check_azure_cli():
     # Try to get current account information
     print("Checking Azure CLI installation and login status...")
     
-    az_version = run_command("az --version")
-    if not az_version:
-        print("Azure CLI is not installed or not in PATH.")
-        choice = input("Do you want to install Azure CLI? [y/N]: ").strip().lower()
-        if choice in ["y", "yes"]:
-            print("Installing Azure CLI...")
-            run_command("curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash")
-        else:
-            print("Azure CLI is required to continue. Please install it and try again.")
-            return False
+    try:
+        from azure.cli.core import get_default_cli
+        print("Azure CLI Python package is installed.")
+    except ImportError:
+        print("Azure CLI Python package is not installed.")
+        print("Please run: pip install azure-cli")
+        return False
     
-    # Check if user is logged in
-    account_info = run_command("az account show")
-    if not account_info:
-        print("You are not logged in to Azure CLI.")
-        print("Running 'az login'...")
-        login_result = run_command("az login")
-        if not login_result:
-            print("Failed to login to Azure CLI.")
+    # Check if user is logged in through API
+    try:
+        from azure.identity import AzureCliCredential
+        credential = AzureCliCredential()
+        # Try to get a token to check if logged in
+        token = credential.get_token("https://management.azure.com/.default")
+        print("You are already logged in to Azure CLI.")
+        return True
+    except Exception as e:
+        print(f"Not logged in to Azure CLI: {str(e)}")
+        
+        # Try to login
+        print("Attempting to login...")
+        print("NOTE: A browser window should open. If it doesn't, please visit the URL shown in the output.")
+        print("If running in a remote environment without a browser, use 'az login --use-device-code' manually.")
+        
+        try:
+            from azure.cli.core import get_default_cli
+            exit_code = get_default_cli().invoke(['login'])
+            if exit_code == 0:
+                print("Successfully logged in to Azure CLI.")
+                return True
+            else:
+                print("Failed to login to Azure CLI.")
+                print("Please run 'az login' manually and then run this script again.")
+                return False
+        except Exception as login_error:
+            print(f"Error during login: {login_error}")
+            print("Please run 'az login' manually and then run this script again.")
             return False
-        print("Successfully logged in to Azure CLI.")
-    else:
-        account_data = json.loads(account_info)
-        print(f"You are logged in as {account_data.get('user', {}).get('name')} in tenant {account_data.get('tenantId')}")
-    
-    return True
 
 def select_subscription():
     """Select the subscription to use."""
     print("\nSelecting Azure subscription...")
     
-    # List available subscriptions
-    subscriptions = run_command("az account list --output json")
-    if not subscriptions:
-        print("Failed to list Azure subscriptions.")
-        return None
-    
-    subscriptions_data = json.loads(subscriptions)
-    if not subscriptions_data:
-        print("No subscriptions found. Make sure you have access to an Azure subscription.")
-        return None
-    
-    # Display available subscriptions
-    print("Available subscriptions:")
-    for idx, sub in enumerate(subscriptions_data, 1):
-        state = "ACTIVE" if sub.get("state") == "Enabled" else "DISABLED"
-        is_default = " (Default)" if sub.get("isDefault") else ""
-        print(f"{idx}. {sub.get('name')} - {sub.get('id')} [{state}]{is_default}")
-    
-    # If only one subscription, use it automatically
-    if len(subscriptions_data) == 1:
-        subscription_id = subscriptions_data[0].get("id")
-        print(f"Using the only available subscription: {subscription_id}")
-        return subscription_id
-    
-    # Find the default subscription
-    default_sub = next((sub for sub in subscriptions_data if sub.get("isDefault")), None)
-    if default_sub:
-        subscription_id = default_sub.get("id")
-        print(f"Using default subscription: {subscription_id}")
-        return subscription_id
-    
-    # Let user select a subscription
-    while True:
-        try:
-            choice = int(input(f"Enter the number of the subscription to use [1-{len(subscriptions_data)}]: "))
-            if 1 <= choice <= len(subscriptions_data):
-                subscription_id = subscriptions_data[choice-1].get("id")
-                print(f"Selected subscription: {subscription_id}")
-                return subscription_id
-            else:
-                print(f"Please enter a number between 1 and {len(subscriptions_data)}")
-        except ValueError:
-            print("Please enter a valid number")
-        except KeyboardInterrupt:
-            print("\nOperation cancelled by user.")
+    try:
+        from azure.cli.core import get_default_cli
+        # Get subscriptions using Azure CLI Python SDK
+        import io
+        import contextlib
+        
+        # Capture output of CLI command
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            get_default_cli().invoke(['account', 'list'])
+            output = buf.getvalue()
+        
+        # Extract JSON part from output
+        import re
+        json_match = re.search(r'(\[.*\])', output, re.DOTALL)
+        if not json_match:
+            print("Failed to parse subscription list.")
             return None
+            
+        subscriptions_json = json_match.group(1)
+        subscriptions_data = json.loads(subscriptions_json)
+        
+        if not subscriptions_data:
+            print("No subscriptions found. Make sure you have access to an Azure subscription.")
+            return None
+        
+        # Display available subscriptions
+        print("Available subscriptions:")
+        for idx, sub in enumerate(subscriptions_data, 1):
+            state = "ACTIVE" if sub.get("state") == "Enabled" else "DISABLED"
+            is_default = " (Default)" if sub.get("isDefault") else ""
+            print(f"{idx}. {sub.get('name')} - {sub.get('id')} [{state}]{is_default}")
+        
+        # If only one subscription, use it automatically
+        if len(subscriptions_data) == 1:
+            subscription_id = subscriptions_data[0].get("id")
+            print(f"Using the only available subscription: {subscription_id}")
+            return subscription_id
+        
+        # Find the default subscription
+        default_sub = next((sub for sub in subscriptions_data if sub.get("isDefault")), None)
+        if default_sub:
+            subscription_id = default_sub.get("id")
+            print(f"Using default subscription: {subscription_id}")
+            return subscription_id
+            
+        # If we get here, we need to select a subscription
+        # In non-interactive mode, just use the first one
+        subscription_id = subscriptions_data[0].get("id")
+        print(f"Automatically selecting first subscription: {subscription_id}")
+        return subscription_id
+        
+    except Exception as e:
+        print(f"Error selecting subscription: {str(e)}")
+        return None
 
 def create_service_principal(subscription_id):
     """Create a service principal with Contributor role."""
@@ -115,16 +135,35 @@ def create_service_principal(subscription_id):
     
     print(f"\nCreating service principal '{sp_name}' with Contributor role...")
     
-    # Create the service principal
-    command = f"az ad sp create-for-rbac --name {sp_name} --role Contributor --scopes /subscriptions/{subscription_id} --output json"
-    result = run_command(command)
-    
-    if not result:
-        print("Failed to create service principal.")
-        return None
-    
     try:
-        sp_data = json.loads(result)
+        # Create using SDK directly
+        from azure.cli.core import get_default_cli
+        import io
+        import contextlib
+        
+        # Capture output of CLI command
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            result = get_default_cli().invoke(['ad', 'sp', 'create-for-rbac', 
+                                      '--name', sp_name, 
+                                      '--role', 'Contributor', 
+                                      '--scopes', f'/subscriptions/{subscription_id}'])
+            output = buf.getvalue()
+        
+        if result != 0:
+            print(f"Failed to create service principal. Exit code: {result}")
+            print(f"Output: {output}")
+            return None
+        
+        # Extract JSON data from output
+        import re
+        json_match = re.search(r'({.*})', output, re.DOTALL)
+        if not json_match:
+            print("Failed to parse service principal data.")
+            return None
+            
+        sp_json = json_match.group(1)
+        sp_data = json.loads(sp_json)
+        
         print("Service Principal created successfully.")
         
         # Map the returned data to expected format
@@ -136,8 +175,8 @@ def create_service_principal(subscription_id):
         }
         
         return credentials
-    except json.JSONDecodeError:
-        print("Failed to parse service principal data.")
+    except Exception as e:
+        print(f"Error creating service principal: {str(e)}")
         return None
 
 def save_credentials(credentials, filename="azure_credentials.json"):

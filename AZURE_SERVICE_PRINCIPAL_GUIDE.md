@@ -1,132 +1,83 @@
-# Creating Azure Service Principal for Deployment
+# Azure Service Principal Creation Guide
 
-This guide walks you through the process of creating an Azure Service Principal that can be used to deploy the Growth Accelerator Staffing Platform to Azure.
-
-## What is a Service Principal?
-
-A Service Principal is an identity created for applications, services, and automation tools to access Azure resources. It's like a user identity (username and password) but for an application instead of a person.
+This guide explains how to create an Azure Service Principal with the necessary permissions to deploy the Growth Accelerator Staffing Platform to Azure App Services.
 
 ## Prerequisites
 
 - An Azure account with an active subscription
-- Azure CLI installed, or access to Azure Cloud Shell
+- Access to Azure Portal with permissions to create service principals
 
-## Step 1: Sign in to Azure
+## Step 1: Create a Service Principal in Azure Portal
 
-### Using Azure CLI
+1. Log in to the [Azure Portal](https://portal.azure.com)
+2. Navigate to **Azure Active Directory** > **App registrations**
+3. Click on **+ New registration**
+4. Enter the following details:
+   - Name: `growth-accelerator-sp`
+   - Supported account types: **Accounts in this organizational directory only**
+   - Redirect URI: (Leave blank)
+5. Click **Register**
+6. Note the **Application (client) ID** and **Directory (tenant) ID** displayed on the overview page
 
-```bash
-az login
-```
+## Step 2: Create a Client Secret
 
-### Using Azure Cloud Shell
+1. In the service principal you just created, navigate to **Certificates & secrets**
+2. Under **Client secrets**, click **+ New client secret**
+3. Enter a description (e.g., "Deployment Secret")
+4. Choose an expiration period (recommended: 12 months)
+5. Click **Add**
+6. **IMPORTANT**: Copy the secret **Value** (not the Secret ID) and store it securely. You won't be able to view it again!
 
-Open [Azure Cloud Shell](https://shell.azure.com/)
+## Step 3: Assign Contributor Role
 
-## Step 2: Get your Subscription ID
+1. Navigate to **Subscriptions** in the Azure Portal
+2. Select your subscription
+3. Click on **Access control (IAM)**
+4. Click **+ Add** > **Add role assignment**
+5. Select the **Contributor** role
+6. In the **Assign access to** field, select **User, group, or service principal**
+7. Click **+ Select members**
+8. Search for `growth-accelerator-sp` and select it
+9. Click **Select**
+10. Click **Review + assign** to complete the role assignment
 
-List all subscriptions you have access to:
+## Step 4: Create Credentials File
 
-```bash
-az account list --output table
-```
-
-Note the `SubscriptionId` of the subscription you want to use.
-
-## Step 3: Set the Active Subscription
-
-If you have multiple subscriptions, set the active one:
-
-```bash
-az account set --subscription "your-subscription-id"
-```
-
-## Step 4: Create a Service Principal
-
-Create a service principal with the Contributor role scoped to your subscription:
-
-```bash
-az ad sp create-for-rbac --name "growth-accelerator-sp" --role Contributor --scopes /subscriptions/your-subscription-id
-```
-
-This command will output something like:
+Create a file named `azure_credentials.json` with the following content, replacing the placeholder values:
 
 ```json
 {
-  "appId": "00000000-0000-0000-0000-000000000000",
-  "displayName": "growth-accelerator-sp",
-  "password": "random-password",
-  "tenant": "00000000-0000-0000-0000-000000000000"
+  "tenantId": "YOUR_TENANT_ID",
+  "clientId": "YOUR_CLIENT_ID",
+  "clientSecret": "YOUR_CLIENT_SECRET",
+  "subscriptionId": "YOUR_SUBSCRIPTION_ID"
 }
 ```
 
-Note these values, as they map to our deployment script parameters:
-- `appId` is the `client_id`
-- `password` is the `client_secret`
-- `tenant` is the `tenant_id`
-- The subscription ID you noted earlier is the `subscription_id`
+## Step 5: Use Credentials for Deployment
 
-## Step 5: Verify the Service Principal
-
-Verify that the service principal was created successfully:
+Now you can use these credentials with the deployment script:
 
 ```bash
-az ad sp show --id "app-id-from-previous-step"
+# Using the deployment script directly
+python deploy_to_app_services.py \
+  --tenant-id "YOUR_TENANT_ID" \
+  --client-id "YOUR_CLIENT_ID" \
+  --client-secret "YOUR_CLIENT_SECRET" \
+  --subscription-id "YOUR_SUBSCRIPTION_ID" \
+  --resource-group "growth-accelerator-rg" \
+  --location "westeurope" \
+  --app-name "growth-accelerator" \
+  --domain "app.growthaccelerator.nl"
+
+# Or using the deploy_now.sh script
+./deploy_now.sh
 ```
 
-## Step 6: Use the Service Principal for Deployment
+## Security Considerations
 
-Now you can use these credentials in our deployment script:
-
-```bash
-python deploy_to_azure_simplified.py \
-  --tenant-id "tenant-id" \
-  --client-id "app-id" \
-  --client-secret "password" \
-  --subscription-id "subscription-id" \
-  # ... other parameters
-```
-
-## Security Best Practices
-
-1. **Limit Permissions**: If possible, assign more specific roles instead of Contributor for the entire subscription.
-2. **Rotate Credentials**: Periodically rotate the service principal password.
-3. **Secure Storage**: Store the credentials securely, preferably in a key vault or secure environment variables.
-4. **Audit Usage**: Regularly review the activities of your service principals.
-
-## Troubleshooting
-
-### Authentication Failures
-
-If you encounter "Insufficient privileges" or authentication errors:
-
-1. Verify that the service principal has the correct role assignment
-2. Check that the credentials are correctly entered
-3. Ensure the service principal hasn't been disabled or expired
-
-```bash
-# Check role assignments
-az role assignment list --assignee "app-id"
-```
-
-### Creating Service Principal with More Restricted Permissions
-
-For production use, you may want to create a service principal with more limited permissions:
-
-```bash
-# Create a resource group first
-az group create --name growth-accelerator-rg --location westeurope
-
-# Create service principal with Contributor role at resource group level only
-az ad sp create-for-rbac --name "growth-accelerator-sp" --role Contributor --scopes /subscriptions/your-subscription-id/resourceGroups/growth-accelerator-rg
-```
-
-This limits the service principal to only manage resources within the specified resource group.
-
-## Cleaning Up
-
-If you need to remove the service principal later:
-
-```bash
-az ad sp delete --id "app-id"
-```
+- Store the credentials securely
+- Consider using Azure Key Vault for production environments
+- Rotate the client secret periodically
+- Limit the service principal's permissions to only what is necessary
+- In GitHub Actions, use repository secrets to store these credentials

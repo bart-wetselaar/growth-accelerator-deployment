@@ -37,26 +37,16 @@ def encrypt_secret(public_key, secret_value):
     return b64encode(encrypted).decode("utf-8")
 
 def get_azure_credentials():
-    """Get Azure Service Principal credentials."""
-    print("\nCreating Azure Service Principal for GitHub Actions...")
-    print("This will create a service principal with Contributor role on your subscription.\n")
+    """Get Azure Service Principal credentials manually."""
+    print("\nPlease create an Azure Service Principal for GitHub Actions using Azure Portal or CLI.")
+    print("Run this command on your local machine: ")
+    print("az ad sp create-for-rbac --name \"github-actions-growth-accelerator\" --role contributor --scopes /subscriptions/{subscription-id} --sdk-auth")
+    print("\nThen copy the entire JSON output here.\n")
     
-    subscription_id = input("Azure Subscription ID: ")
-    sp_name = input("Service Principal Name [github-actions-growth-accelerator]: ") or "github-actions-growth-accelerator"
+    print("Enter the Azure Service Principal credentials JSON:")
+    credentials = getpass.getpass("Paste your JSON credentials (it will be hidden for security): ")
     
-    print("\nCreating service principal...")
-    result = subprocess.run(
-        ["az", "ad", "sp", "create-for-rbac", 
-         "--name", sp_name,
-         "--role", "Contributor",
-         "--scopes", f"/subscriptions/{subscription_id}",
-         "--sdk-auth"],
-        check=True,
-        capture_output=True,
-        text=True
-    )
-    
-    return result.stdout.strip()
+    return credentials
 
 def main():
     """Main function to set up GitHub repository secrets."""

@@ -1,143 +1,115 @@
-# DNS Configuration Guide for Growth Accelerator Staffing Platform
+# Growth Accelerator Staffing Platform - DNS Configuration Guide
 
-This guide explains how to configure your DNS settings to point your custom domain to the Growth Accelerator Staffing Platform deployed on Azure App Service.
+This guide provides detailed instructions for configuring DNS settings for the Growth Accelerator Staffing Platform's custom domain (app.growthaccelerator.nl).
 
 ## Prerequisites
 
-- Ownership of the domain (e.g., `growthaccelerator.nl`)
-- Access to your domain's DNS settings (typically through your domain registrar)
-- Azure App Service deployment complete
-- Domain verification ID from Azure
+- Azure App Service deployment completed
+- Access to your domain registrar or DNS provider for growthaccelerator.nl
+- Domain verification ID (provided by Azure after deployment)
 
-## Overview of Required DNS Records
+## DNS Records Overview
 
-To properly configure your domain to work with Azure App Service, you need to set up the following DNS records:
+You'll need to configure two DNS records:
 
 1. **TXT Record** - For domain ownership verification
-2. **CNAME Record** - To point your subdomain to Azure App Service
-3. **Optional CDN CNAME Record** - If using Azure CDN for better performance
+2. **CNAME Record** - For routing traffic to Azure App Service
 
-## Step 1: Domain Ownership Verification
+## Step 1: Add TXT Record for Domain Verification
 
-Azure requires you to verify domain ownership before binding a custom domain to your App Service.
+The TXT record proves that you own the domain and allows Azure to use it with your web app.
 
-### Create a TXT Record
+| Record Type | Name/Host | Value/Target | TTL |
+|-------------|-----------|--------------|-----|
+| TXT | asuid.app.growthaccelerator.nl | [verification-id] | 3600 (or default) |
 
-1. Log in to your domain registrar (e.g., GoDaddy, Namecheap, TransIP)
-2. Go to DNS Management or DNS Records section
-3. Add a new TXT record with the following values:
-   - **Name/Host**: `asuid.app` (for app.growthaccelerator.nl)
-   - **Value/Content**: `[Your Azure Domain Verification ID]`
-   - **TTL**: 3600 (or 1 hour)
+Replace `[verification-id]` with the actual verification ID provided by Azure after deployment.
 
-Example:
-```
-asuid.app.growthaccelerator.nl  TXT  MS12345678901234567890ABCDEFGH
-```
+## Step 2: Add CNAME Record for Traffic Routing
 
-## Step 2: Configure Custom Domain CNAME
+The CNAME record routes traffic from your custom domain to your Azure App Service.
 
-Create a CNAME record that maps your subdomain to the Azure App Service.
+| Record Type | Name/Host | Value/Target | TTL |
+|-------------|-----------|--------------|-----|
+| CNAME | app.growthaccelerator.nl | growth-accelerator-staffing.azurewebsites.net | 3600 (or default) |
 
-1. Log in to your domain registrar
-2. Go to DNS Management or DNS Records section
-3. Add a new CNAME record with the following values:
-   - **Name/Host**: `app` (for app.growthaccelerator.nl)
-   - **Value/Target**: `growth-accelerator-staffing.azurewebsites.net` (your App Service URL)
-   - **TTL**: 3600 (or 1 hour)
+Replace `growth-accelerator-staffing` with your actual App Service name if different.
 
-Example:
-```
-app.growthaccelerator.nl  CNAME  growth-accelerator-staffing.azurewebsites.net
+## Step 3: Verify DNS Propagation
+
+DNS changes can take time to propagate (typically 15 minutes to 48 hours). You can check if your DNS records have propagated using:
+
+```bash
+dig TXT asuid.app.growthaccelerator.nl
+dig CNAME app.growthaccelerator.nl
 ```
 
-## Step 3: (Optional) Configure CDN CNAME
+Or use online tools like [DNSChecker](https://dnschecker.org/) or [MxToolbox](https://mxtoolbox.com/).
 
-If you're using Azure CDN to improve performance and reduce load on your App Service, you can set up an additional CNAME.
+## Step 4: Verify Domain in Azure Portal
 
-1. Log in to your domain registrar
-2. Go to DNS Management or DNS Records section
-3. Add a new CNAME record with the following values:
-   - **Name/Host**: `cdn` (for cdn.growthaccelerator.nl)
-   - **Value/Target**: `growth-accelerator-staffing-endpoint.azureedge.net` (your CDN endpoint)
-   - **TTL**: 3600 (or 1 hour)
-
-Example:
-```
-cdn.growthaccelerator.nl  CNAME  growth-accelerator-staffing-endpoint.azureedge.net
-```
-
-## Step 4: Verify DNS Propagation
-
-DNS changes can take time to propagate (typically 15 minutes to 48 hours). You can verify propagation using:
-
-1. **Command line** (Linux/macOS/Windows with WSL):
-   ```bash
-   dig TXT asuid.app.growthaccelerator.nl
-   dig CNAME app.growthaccelerator.nl
-   ```
-
-2. **Online tools**:
-   - [DNS Checker](https://dnschecker.org)
-   - [MxToolbox](https://mxtoolbox.com/DNSLookup.aspx)
-   - [WhatsMyDNS](https://whatsmydns.net)
-
-## Step 5: Add Custom Domain in Azure Portal
-
-After DNS propagation is complete, you need to configure the custom domain in Azure:
+Once DNS records have propagated:
 
 1. Log in to the [Azure Portal](https://portal.azure.com)
-2. Navigate to your App Service
-3. Under **Settings**, select **Custom domains**
-4. Click **+ Add custom domain**
-5. Enter your custom domain (e.g., `app.growthaccelerator.nl`)
-6. Azure will validate the domain ownership using the TXT record
-7. Select **Add custom domain**
+2. Navigate to **App Services** > your app (e.g., growth-accelerator-staffing)
+3. Select **Custom domains** from the left menu
+4. Click **Add custom domain**
+5. Enter your domain name (app.growthaccelerator.nl)
+6. Azure will verify the TXT record
+7. Once verified, add the domain
 
-## Step 6: Configure HTTPS/SSL
+## Step 5: Configure SSL/TLS Certificate
 
-For security, you should enable HTTPS for your custom domain:
+For secure HTTPS access:
 
-1. In the Azure Portal, navigate to your App Service
-2. Under **Settings**, select **TLS/SSL settings**
-3. Select **Private Key Certificates**
+1. In the Azure Portal, go to your app service
+2. Select **TLS/SSL settings** from the left menu
+3. Click **Private Key Certificates** tab
 4. Click **Create App Service Managed Certificate**
-5. Select your custom domain and click **Create**
-6. Once the certificate is created, go to **Custom domains**
-7. Next to your custom domain, click **Add Binding**
-8. Select the certificate and click **Add Binding**
+5. Select your verified custom domain
+6. Click **Create**
+7. Once created, go to **TLS/SSL bindings**
+8. Click **Add TLS/SSL binding**
+9. Select your custom domain, the managed certificate, and TLS 1.2
+10. Click **Add Binding**
 
-## Troubleshooting
+## Troubleshooting DNS Issues
 
-### Domain Verification Issues
+### TXT Record Verification Fails
 
-- Ensure the TXT record is correctly configured with the exact verification ID provided by Azure
-- Wait for DNS propagation (may take up to 48 hours)
-- Check that the TXT record is at the correct host/name
+- Verify you added the TXT record to the correct domain zone
+- Check that the name is exactly `asuid.app.growthaccelerator.nl`
+- Ensure the verification ID value is correct with no extra spaces
+- Wait longer for DNS propagation (up to 48 hours in rare cases)
 
 ### CNAME Issues
 
-- Ensure your CNAME points to the correct App Service URL
-- Check for conflicting DNS records (e.g., A records for the same host)
-- Some domain registrars don't allow CNAME records at the root domain (e.g., growthaccelerator.nl)
+- Ensure there are no conflicting records (like A records) for the same hostname
+- Verify the target is exactly your `.azurewebsites.net` address
+- Check that your domain registrar allows CNAME records at the apex/root level
 
-### SSL/HTTPS Issues
+### Testing Connectivity
 
-- If the managed certificate fails to generate, you may need to use your own certificate
-- Ensure your domain is correctly validated before requesting a certificate
-
-## Using the DNS Checker Script
-
-We've provided a DNS checker script that can help verify your DNS configuration:
+After DNS propagation and Azure verification:
 
 ```bash
-python check_dns_configuration.py --domain app.growthaccelerator.nl --verification-id YOUR_VERIFICATION_ID
+# Check if your domain resolves to the correct Azure address
+nslookup app.growthaccelerator.nl
+
+# Test HTTPS connectivity
+curl -I https://app.growthaccelerator.nl
 ```
 
-The script will check for proper TXT and CNAME record configuration and continuously monitor DNS propagation.
+## Monitoring Tool
 
-## Additional Resources
+You can use the included DNS monitoring script to check DNS propagation status:
 
-- [Azure App Service Domain Configuration Documentation](https://docs.microsoft.com/en-us/azure/app-service/app-service-web-tutorial-custom-domain)
-- [Azure App Service HTTPS Configuration](https://docs.microsoft.com/en-us/azure/app-service/configure-ssl-bindings)
-- [DNS Concepts and Best Practices](https://docs.microsoft.com/en-us/azure/dns/dns-operations-recordsets-portal)
+```bash
+python check_dns_configuration.py --domain app.growthaccelerator.nl --verification-id [your-verification-id]
+```
+
+For continuous monitoring during propagation:
+
+```bash
+python check_dns_configuration.py --domain app.growthaccelerator.nl --verification-id [your-verification-id] --monitor
+```

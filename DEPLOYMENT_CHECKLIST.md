@@ -1,251 +1,120 @@
-# Growth Accelerator Staffing Platform Deployment Checklist
+# Growth Accelerator Staffing Platform - Deployment Checklist
 
-Use this checklist to ensure a smooth deployment of the Growth Accelerator Staffing Platform to Azure App Service.
+This checklist helps ensure a successful deployment of the Growth Accelerator Staffing Platform to Azure. Follow these steps in order to deploy the application.
 
-## Pre-Deployment Preparation
+## Pre-Deployment Checklist
 
-### Local Environment Setup
-- [ ] Install Azure CLI
-- [ ] Install Git
-- [ ] Install Python 3.10+
-- [ ] Install Docker and Docker Compose
-- [ ] Clone the repository
+### 1. Azure Account and Service Principal
 
-### Azure Account Preparation
-- [ ] Ensure Azure subscription is active
-- [ ] Verify appropriate permissions (Contributor role)
-- [ ] Check subscription spending limits and quotas
+- [ ] Active Azure subscription
+- [ ] Azure Service Principal created with Contributor permissions
+- [ ] Tenant ID, Client ID, and Client Secret recorded
+- [ ] Subscription ID recorded
 
-### Gather Required Information
-- [ ] Azure Subscription ID
-- [ ] Resource Group name to use
-- [ ] Azure region to deploy to (e.g., West Europe)
-- [ ] App Service name
-- [ ] Custom domain (e.g., app.growthaccelerator.nl)
-- [ ] Docker registry username and password
-- [ ] API keys (Workable, LinkedIn, Squarespace)
-- [ ] Database credentials
+### 2. Container Registry and Docker Image
 
-## GitHub Repository Setup
+- [ ] GitHub repository created
+- [ ] GitHub Personal Access Token created with appropriate permissions
+- [ ] Docker image built and pushed to GitHub Container Registry (ghcr.io)
+- [ ] Container image URL recorded
 
-### Repository Configuration
-- [ ] Create GitHub repository
-- [ ] Push code to repository
-- [ ] Set up branch protection for main branch
-- [ ] Configure repository settings
+### 3. API Keys and Credentials
 
-### GitHub Actions Setup
-- [ ] Create Service Principal in Azure for GitHub Actions
-      ```
-      az ad sp create-for-rbac --name "github-actions-growth-accelerator" \
-                              --role contributor \
-                              --scopes /subscriptions/<subscription-id> \
-                              --sdk-auth
-      ```
-- [ ] Store Azure credentials in GitHub Secrets
-- [ ] Configure additional GitHub Secrets:
-  - [ ] AZURE_CREDENTIALS
-  - [ ] AZURE_RESOURCE_GROUP
-  - [ ] AZURE_APP_NAME
-  - [ ] WORKABLE_API_KEY
-  - [ ] LINKEDIN_CLIENT_ID
-  - [ ] LINKEDIN_CLIENT_SECRET
-  - [ ] SQUARESPACE_API_KEY
-  - [ ] DATABASE_URL
-  - [ ] SESSION_SECRET
+- [ ] Workable API Key obtained
+- [ ] LinkedIn Client ID and Secret obtained
+- [ ] Squarespace API Key obtained
+- [ ] Session Secret created (or leave empty to auto-generate)
 
-## Azure Infrastructure Deployment
+### 4. Domain and DNS
 
-### ARM Template Deployment
-- [ ] Update ARM template parameters if needed
-- [ ] Deploy infrastructure using ARM template:
-      ```
-      az deployment group create --resource-group <resource-group> \
-                                --template-file azure/azuredeploy.json \
-                                --parameters appName=<app-name> customDomainName=<domain>
-      ```
-- [ ] Verify all resources are created successfully
+- [ ] Custom domain registered and available (e.g., app.growthaccelerator.nl)
+- [ ] DNS access to add TXT and CNAME records
 
-### Database Setup
-- [ ] Ensure PostgreSQL server is created
-- [ ] Configure firewall rules
-- [ ] Create database and users
-- [ ] Verify database connection
+## Deployment Steps
 
-### App Service Configuration
-- [ ] Verify App Service is created
-- [ ] Configure deployment settings
-- [ ] Set up application settings
-- [ ] Configure diagnostic settings
-- [ ] Set up continuous deployment
+### 1. Get Deployment Scripts
 
-## DNS and SSL Setup
+- [ ] Clone the deployment repository:
+  ```
+  git clone https://github.com/bart-wetselaar/growth-accelerator-deployment.git
+  ```
+  
+  Or download individual files:
+  ```
+  curl -O https://raw.githubusercontent.com/bart-wetselaar/growth-accelerator-deployment/main/quick_deploy.sh
+  chmod +x quick_deploy.sh
+  ```
 
-### DNS Records
-- [ ] Get domain verification ID from Azure
-- [ ] Create TXT record for domain verification:
-      ```
-      asuid.<custom-domain>  TXT  <verification-id>
-      ```
-- [ ] Create CNAME record for custom domain:
-      ```
-      <subdomain>  CNAME  <app-name>.azurewebsites.net
-      ```
-- [ ] (Optional) Create CNAME for CDN endpoint:
-      ```
-      cdn  CNAME  <app-name>-endpoint.azureedge.net
-      ```
-- [ ] Verify DNS propagation
+### 2. Run Deployment
 
-### SSL/TLS Configuration
-- [ ] Add custom domain in Azure portal
-- [ ] Generate App Service Managed Certificate
+- [ ] Run the Quick Deploy script:
+  ```
+  ./quick_deploy.sh
+  ```
+  
+  Or run the deployment script directly:
+  ```
+  python deploy_to_azure_simplified.py --tenant-id "..." --client-id "..." ...
+  ```
+
+### 3. Configure DNS
+
+- [ ] Add TXT record for domain verification:
+  - Name: `asuid.app.growthaccelerator.nl`
+  - Value: `<verification-id>` (provided by deployment output)
+  
+- [ ] Add CNAME record for the custom domain:
+  - Name: `app.growthaccelerator.nl`
+  - Value: `<app-name>.azurewebsites.net` (e.g., `growth-accelerator-staffing.azurewebsites.net`)
+
+### 4. Add Custom Domain in Azure Portal
+
+- [ ] Navigate to App Service in Azure Portal
+- [ ] Select the deployed app
+- [ ] Go to "Custom domains"
+- [ ] Click "Add custom domain"
+- [ ] Enter the custom domain name (e.g., app.growthaccelerator.nl)
+- [ ] Verify domain ownership
 - [ ] Add TLS/SSL binding
-- [ ] Enforce HTTPS
-- [ ] Verify SSL configuration
 
-## Application Deployment
+## Post-Deployment Checklist
 
-### Docker Image
-- [ ] Build Docker image
-- [ ] Tag image
-- [ ] Push image to container registry
-- [ ] Verify image in registry
+### 1. Verify Deployment
 
-### App Service Deployment
-- [ ] Deploy application to App Service
-- [ ] Verify deployment success
-- [ ] Check application logs
+- [ ] Access the Azure Web App URL: `https://<app-name>.azurewebsites.net`
+- [ ] Verify the application loads correctly
+- [ ] Check that all services are working (Workable, LinkedIn, Squarespace)
+- [ ] Access the custom domain after DNS propagation: `https://app.growthaccelerator.nl`
 
-## Post-Deployment Tasks
+### 2. Monitor Application
 
-### Application Verification
-- [ ] Access application using custom domain
-- [ ] Verify HTTPS is working
-- [ ] Test authentication flow
-- [ ] Test API functionality
-- [ ] Test data retrieval from Workable
-- [ ] Test integration with LinkedIn
-- [ ] Test integration with Squarespace
+- [ ] Check Application Insights for any errors
+- [ ] Verify database connectivity
+- [ ] Test all major application features
 
-### Monitoring and Alerts
-- [ ] Set up Application Insights
-- [ ] Configure alerts for errors
-- [ ] Configure performance alerts
-- [ ] Set up health check monitoring
-- [ ] Configure email notifications
+### 3. Security and Maintenance
 
-### Documentation
-- [ ] Update README.md with deployment information
-- [ ] Document environment variables
-- [ ] Document custom domain setup
-- [ ] Document maintenance procedures
-- [ ] Document rollback procedures
+- [ ] Enable auto-scaling if needed
+- [ ] Set up monitoring and alerts
+- [ ] Schedule regular database backups
+- [ ] Document the deployment for future reference
 
-### Backup and Disaster Recovery
-- [ ] Configure database backups
-- [ ] Verify backup functionality
-- [ ] Document restore procedures
-- [ ] Set up geo-redundancy (if needed)
+## Troubleshooting
 
-## Optimization and Performance
+If you encounter issues during deployment:
 
-### CDN Setup (Optional)
-- [ ] Set up Azure CDN
-- [ ] Configure CDN endpoint
-- [ ] Set up CDN rules
-- [ ] Verify CDN caching
-- [ ] Configure cache-control headers
+1. Check the deployment script output for specific error messages
+2. Verify that all API keys and credentials are correct
+3. Ensure the DNS records are properly configured
+4. Check Azure Portal for resource-specific errors
+5. Verify network connectivity and firewall settings
 
-### Performance Testing
-- [ ] Conduct load testing
-- [ ] Analyze performance metrics
-- [ ] Optimize database queries
-- [ ] Implement performance improvements
-- [ ] Verify improvements
+## Rollback Procedure
 
-## Security
+If needed, you can roll back the deployment:
 
-### Security Scan
-- [ ] Run security scan on application
-- [ ] Verify secure headers
-- [ ] Check for exposed endpoints
-- [ ] Test authentication security
-- [ ] Verify API security
+1. Restore from a previous database backup
+2. Redeploy an earlier container image version
+3. Revert DNS changes if needed
 
-### Compliance
-- [ ] Ensure GDPR compliance
-- [ ] Check data protection measures
-- [ ] Verify privacy policy
-- [ ] Document compliance measures
-
-## Final Review
-
-### Go-Live Checklist
-- [ ] Conduct final application testing
-- [ ] Verify all integrations are working
-- [ ] Confirm monitoring is active
-- [ ] Validate security measures
-- [ ] Obtain stakeholder approval
-
-### Announcement
-- [ ] Prepare go-live announcement
-- [ ] Update documentation
-- [ ] Communicate with stakeholders
-- [ ] Schedule post-deployment review
-
-## Useful Commands
-
-### Azure CLI
-```bash
-# Login to Azure
-az login
-
-# List subscriptions
-az account list --output table
-
-# Set active subscription
-az account set --subscription <subscription-id>
-
-# Create resource group
-az group create --name <resource-group> --location <location>
-
-# Deploy ARM template
-az deployment group create --resource-group <resource-group> --template-file <template-file> --parameters <parameters>
-
-# List App Services
-az webapp list --resource-group <resource-group> --output table
-
-# Get App Service details
-az webapp show --resource-group <resource-group> --name <app-name>
-
-# Restart App Service
-az webapp restart --resource-group <resource-group> --name <app-name>
-
-# Get deployment logs
-az webapp log deployment show --resource-group <resource-group> --name <app-name>
-
-# Stream logs
-az webapp log tail --resource-group <resource-group> --name <app-name>
-```
-
-### Docker
-```bash
-# Build Docker image
-docker build -t <image-name> .
-
-# Tag Docker image
-docker tag <image-name> <registry>/<image-name>:<tag>
-
-# Push Docker image
-docker push <registry>/<image-name>:<tag>
-
-# Run Docker image locally
-docker run -p 8000:8000 <image-name>
-```
-
-### GitHub Actions
-```yaml
-# Manually trigger GitHub Actions workflow
-gh workflow run "Deploy to Azure App Service"
-```
+For assistance, contact the deployment team.

@@ -1,0 +1,157 @@
+name: Deploy Growth Accelerator to Azure
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Create Growth Accelerator Flask application
+      run: |
+        cat > app.py << 'EOF'
+import os
+from functools import wraps
+from flask import Flask, request, Response, render_template_string, jsonify
+from datetime import datetime
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('SESSION_SECRET', 'growth-accelerator-production')
+
+BASIC_AUTH_USERNAME = 'admin'
+BASIC_AUTH_PASSWORD = 'GrowthAccelerator2024!'
+
+def check_auth(username, password):
+    return username == BASIC_AUTH_USERNAME and password == BASIC_AUTH_PASSWORD
+
+def authenticate():
+    return Response(
+        'Authentication required for Growth Accelerator Platform', 401,
+        {'WWW-Authenticate': 'Basic realm="Growth Accelerator Platform"'})
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route('/')
+@requires_auth
+def home():
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Growth Accelerator Platform</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0; min-height: 100vh; color: #333;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        .header { text-align: center; color: white; margin-bottom: 3rem; }
+        .header h1 { font-size: 3.5rem; font-weight: 700; margin-bottom: 1rem; }
+        .status-badge { 
+            background: rgba(40, 167, 69, 0.9); padding: 1rem 2rem; 
+            border-radius: 50px; display: inline-block; font-weight: 600; color: white;
+        }
+        .modules { 
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem; margin: 3rem 0;
+        }
+        .module {
+            background: rgba(255,255,255,0.95); padding: 2.5rem; border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        .module h3 { color: #2c3e50; font-size: 1.5rem; margin-bottom: 1rem; }
+        .module p { color: #666; line-height: 1.7; }
+        .deployment-info {
+            background: rgba(255,255,255,0.95); padding: 2rem; border-radius: 15px;
+            margin: 2rem 0; border-left: 4px solid #667eea; text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Growth Accelerator Platform</h1>
+            <p style="font-size: 1.3rem; opacity: 0.9; margin-bottom: 2rem;">AI-Powered Staffing Solutions</p>
+            <div class="status-badge">Production Environment - Azure West Europe</div>
+        </div>
+        
+        <div class="deployment-info">
+            <h3>Deployment Successfully Completed</h3>
+            <p><strong>Primary URL:</strong> ga-hwaffmb0eqajfza5.westeurope-01.azurewebsites.net</p>
+            <p><strong>Custom Domain:</strong> app.growthaccelerator.nl</p>
+            <p><strong>Authentication:</strong> Basic Auth (admin/GrowthAccelerator2024!)</p>
+            <p><strong>Deployed:</strong> {{ timestamp }}</p>
+        </div>
+        
+        <div class="modules">
+            <div class="module">
+                <h3>Staffing Module</h3>
+                <p>Complete workflow from client onboarding through placement with Workable API integration</p>
+            </div>
+            
+            <div class="module">
+                <h3>Services Workspace</h3>
+                <p>LinkedIn and desktop application integrations for enhanced productivity</p>
+            </div>
+            
+            <div class="module">
+                <h3>Contracting System</h3>
+                <p>API integration for hourly registration and payment processing</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+    """, timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC'))
+
+@app.route('/api/health')
+def health():
+    return jsonify({
+        "status": "healthy",
+        "service": "Growth Accelerator Platform",
+        "environment": "production",
+        "deployment": {
+            "primary_url": "ga-hwaffmb0eqajfza5.westeurope-01.azurewebsites.net",
+            "custom_domain": "app.growthaccelerator.nl",
+            "region": "West Europe"
+        },
+        "timestamp": datetime.now().isoformat()
+    })
+
+if __name__ == "__main__":
+    port = int(os.environ.get('PORT', 8000))
+    app.run(host="0.0.0.0", port=port, debug=False)
+EOF
+        
+        echo "Flask==3.0.0" > requirements.txt
+        echo "gunicorn==21.2.0" >> requirements.txt
+        echo "requests==2.31.0" >> requirements.txt
+    
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: GA
+        publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
+        package: .
+        startup-command: 'gunicorn app:app --bind 0.0.0.0:8000'

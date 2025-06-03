@@ -1,0 +1,50 @@
+name: Deploy Growth Accelerator to Azure
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+env:
+  AZURE_WEBAPP_NAME: GA
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install Flask gunicorn requests
+    
+    - name: Create runtime files
+      run: |
+        echo "Flask==3.0.0" > requirements.txt
+        echo "gunicorn==21.2.0" >> requirements.txt
+        echo "requests==2.31.0" >> requirements.txt
+        
+        cat > startup.sh << 'EOL'
+#!/bin/bash
+gunicorn --bind 0.0.0.0:8000 main:app
+EOL
+        chmod +x startup.sh
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        package: .

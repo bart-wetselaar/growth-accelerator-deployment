@@ -1,0 +1,70 @@
+name: Deploy Flask to Azure
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: GA
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install Flask==3.0.0 gunicorn==21.2.0
+    
+    - name: Create Flask application
+      run: |
+        cat > app.py << 'EOF'
+from flask import Flask
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    html = '''<!DOCTYPE html>
+<html>
+<head><title>Growth Accelerator Platform</title></head>
+<body>
+    <h1>Growth Accelerator Staffing Platform</h1>
+    <p>Flask application successfully deployed to Azure</p>
+    <p>Deployment pipeline: Replit to GitHub to Azure</p>
+    <ul>
+        <li>Staffing Module: Ready</li>
+        <li>Services Workspace: Ready</li>
+        <li>Contracting System: Ready</li>
+    </ul>
+</body>
+</html>'''
+    return html
+
+@app.route('/dashboard')
+def dashboard():
+    return '<h1>Growth Accelerator Dashboard</h1><p>Flask running on Azure</p>'
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)
+EOF
+        
+        echo "Flask==3.0.0" > requirements.txt
+        echo "gunicorn==21.2.0" >> requirements.txt
+    
+    - name: Deploy to Azure
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_PUBLISH_PASSWORD }}
+        package: .

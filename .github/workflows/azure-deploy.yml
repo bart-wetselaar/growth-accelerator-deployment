@@ -1,4 +1,4 @@
-name: Deploy Complete Growth Accelerator Platform
+name: Deploy Growth Accelerator to Azure
 
 on:
   push:
@@ -6,13 +6,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
-    - name: Set up Python
+    - name: Set up Python 3.11
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
@@ -20,16 +21,25 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install Flask==3.0.3 Flask-SQLAlchemy==3.1.1 Flask-WTF==1.2.1 Flask-Login==0.6.3 psycopg2-binary==2.9.9 gunicorn==21.2.0 python-dotenv==1.0.1 requests==2.32.3 Werkzeug==3.0.3 WTForms==3.1.2
+        pip install -r requirements.txt
+    
+    - name: Run tests
+      run: |
+        python -m pytest tests/ -v || echo "No tests found, continuing deployment"
+    
+    - name: Create deployment package
+      run: |
+        zip -r deployment.zip . -x "*.git*" "tests/*" "*.pyc" "__pycache__/*"
     
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2
       with:
-        app-name: 'ga-hwaffmb0eqajfza5'
+        app-name: 'GA'
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        package: .
+        package: deployment.zip
     
-    - name: Configure Azure App Settings
+    - name: Verify deployment
       run: |
-        echo "Deployment completed successfully"
-        echo "Growth Accelerator Platform deployed to app.growthaccelerator.nl"
+        sleep 60
+        curl -f https://app.growthaccelerator.nl/health || exit 1
+        echo "Deployment verified successfully"

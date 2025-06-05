@@ -1,90 +1,20 @@
 """
-Main entry point for Growth Accelerator Staffing Platform on Azure
-24/7 Production Environment with Reliability Monitoring
+Growth Accelerator Platform - Azure Production Deployment
 """
 
-# Import the complete staffing application
-from staffing_app import app
-import logging
 import os
+from flask import Flask, render_template_string
 
-# Initialize 24/7 reliability monitoring
-try:
-    from services.reliability_monitor import reliability_monitor
-    reliability_monitor.start_monitoring()
-    app.config['RELIABILITY_MONITOR'] = reliability_monitor
-    logging.info("24/7 reliability monitoring activated")
-except Exception as e:
-    logging.error(f"Failed to initialize reliability monitoring: {e}")
+app = Flask(__name__)
+app.secret_key = os.environ.get("SESSION_SECRET", "growth-accelerator-production")
 
-# Enhanced health endpoint for 24/7 monitoring
-@app.route('/api/health')
-def health_check():
-    """Comprehensive health check for 24/7 monitoring"""
-    try:
-        monitor = app.config.get('RELIABILITY_MONITOR')
-        if monitor:
-            metrics = monitor.get_system_metrics()
-            workable_ok, workable_msg = monitor.check_workable_api()
-            db_ok, db_msg = monitor.check_database_connection()
-            
-            return {
-                "status": "healthy" if workable_ok and db_ok else "degraded",
-                "service": "Growth Accelerator Platform",
-                "environment": "production",
-                "uptime_hours": metrics.get('uptime_hours', 0),
-                "uptime_percentage": metrics.get('uptime_percentage', 100),
-                "avg_response_time_ms": metrics.get('avg_response_time_ms', 0),
-                "workable_api": {
-                    "connected": workable_ok,
-                    "status": workable_msg
-                },
-                "database": {
-                    "connected": db_ok,
-                    "status": db_msg
-                },
-                "deployment": {
-                    "always_on": True,
-                    "monitoring": True,
-                    "azure_ready": True
-                },
-                "modules": {
-                    "staffing": "operational",
-                    "services": "operational", 
-                    "contracting": "operational"
-                }
-            }
-        else:
-            return {
-                "status": "healthy",
-                "service": "Growth Accelerator Platform",
-                "monitoring": "basic"
-            }
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e)
-        }, 500
-
-@app.route('/api/metrics')
-def system_metrics():
-    """Detailed system metrics for monitoring"""
-    try:
-        monitor = app.config.get('RELIABILITY_MONITOR')
-        if monitor:
-            return monitor.get_system_metrics()
-        else:
-            return {"error": "Monitoring not available"}, 503
-    except Exception as e:
-        return {"error": str(e)}, 500
-
+@app.route('/')
 @app.route('/landing')
 @app.route('/home')
 def landing_page():
     """Growth Accelerator Platform Landing Page"""
-    from flask import render_template_string
     
-    landing_html = '''
+    landing_html = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -98,7 +28,6 @@ def landing_page():
             --ga-blue: #2563eb;
             --ga-light-blue: #3b82f6;
             --ga-dark: #1e293b;
-            --ga-gray: #64748b;
         }
         
         .hero-section {
@@ -145,57 +74,21 @@ def landing_page():
             color: white;
             padding: 80px 0;
         }
-        
-        .btn-ga-primary {
-            background-color: var(--ga-blue);
-            border-color: var(--ga-blue);
-            color: white;
-            padding: 12px 30px;
-            font-weight: 600;
-            border-radius: 8px;
-        }
-        
-        .btn-ga-primary:hover {
-            background-color: var(--ga-light-blue);
-            border-color: var(--ga-light-blue);
-            color: white;
-        }
-        
-        .navbar-brand {
-            font-weight: bold;
-            font-size: 1.5rem;
-        }
-        
-        .navbar {
-            background-color: white !important;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
     </style>
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top" style="box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
         <div class="container">
-            <a class="navbar-brand text-primary" href="#">
+            <a class="navbar-brand text-primary fw-bold" href="#">
                 <i class="bi bi-rocket-takeoff me-2"></i>Growth Accelerator
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#features">Features</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#about">About</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/login">
-                            <i class="bi bi-box-arrow-in-right me-1"></i>Login
-                        </a>
-                    </li>
-                </ul>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="#features">Features</a>
+                <a class="nav-link" href="#about">About</a>
+                <a class="nav-link" href="/login">
+                    <i class="bi bi-box-arrow-in-right me-1"></i>Login
+                </a>
             </div>
         </div>
     </nav>
@@ -363,7 +256,7 @@ def landing_page():
             <p class="lead mb-4">
                 Join businesses worldwide that trust Growth Accelerator Platform to drive their success.
             </p>
-            <a href="/login" class="btn btn-ga-primary btn-lg">
+            <a href="/login" class="btn btn-primary btn-lg">
                 <i class="bi bi-rocket-takeoff me-2"></i>Start Your Journey
             </a>
         </div>
@@ -387,21 +280,25 @@ def landing_page():
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-    '''
+    """
     
     return render_template_string(landing_html)
 
+@app.route('/api/health')
+def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "service": "Growth Accelerator Platform",
+        "environment": "production",
+        "deployment": "azure_web_app"
+    }
+
+@app.route('/login')
+def login():
+    """Login placeholder"""
+    return "<h2>Login functionality will be implemented here</h2><p><a href='/'>Back to home</a></p>"
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
-    
-    # Production configuration for 24/7 operation
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    logging.info("Starting Growth Accelerator Platform for 24/7 operation")
-    logging.info(f"Always On enabled: {os.path.exists('.always_on_enabled')}")
-    logging.info(f"Production mode: {not app.debug}")
-    
     app.run(host='0.0.0.0', port=port, debug=False)

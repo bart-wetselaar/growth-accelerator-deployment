@@ -849,7 +849,7 @@ def serve_static(filename):
 # Main website routes
 @app.route('/')
 def index():
-    """Homepage route - Growth Accelerator welcome page"""
+    """Homepage route - Growth Accelerator landing page"""
     return render_template('staffing_app/landing.html')
     
 @app.route('/staffing')

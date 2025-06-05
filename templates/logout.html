@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logged Out - Growth Accelerator Staffing</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --ga-primary: #0A3D62;
+            --ga-secondary: #2E86C1;
+            --ga-accent: #FF5733;
+            --ga-light: #ECF0F1;
+            --ga-dark: #1C2833;
+        }
+        
+        body {
+            background-color: var(--ga-primary);
+            color: var(--ga-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .logout-container {
+            max-width: 500px;
+            text-align: center;
+            padding: 3rem;
+            margin: 2rem;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 1rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(8px);
+        }
+
+        .logo-container {
+            margin-bottom: 2rem;
+        }
+
+        .ga-logo {
+            width: 80px;
+            height: 80px;
+            background-color: white;
+            color: var(--ga-primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            margin: 0 auto 1rem;
+        }
+
+        h1 {
+            font-weight: 600;
+            margin-bottom: 1rem;
+            font-size: 1.8rem;
+        }
+
+        p {
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .btn-primary {
+            background-color: var(--ga-accent);
+            border-color: var(--ga-accent);
+            border-radius: 2rem;
+            padding: 0.75rem 2rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: #ff6e52;
+            border-color: #ff6e52;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-outline-light {
+            border-radius: 2rem;
+            padding: 0.75rem 2rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-outline-light:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .feedback-link {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .feedback-link a {
+            color: var(--ga-accent);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+
+        .feedback-link a:hover {
+            color: #ff6e52;
+            transform: translateY(-3px);
+        }
+
+        .feedback-link i {
+            margin-right: 0.5rem;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="logout-container">
+        <div class="logo-container">
+            <div class="ga-logo">
+                <i class="bi bi-layers"></i>
+            </div>
+        </div>
+        
+        <h1>You have been logged out</h1>
+        <p>Thank you for using Growth Accelerator Staffing Platform. Your session has been ended successfully.</p>
+        
+        <div class="d-flex justify-content-center gap-3">
+            <a href="{{ url_for('login') }}" class="btn btn-primary">
+                <i class="bi bi-box-arrow-in-right me-2"></i>Log In Again
+            </a>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-light">
+                <i class="bi bi-house me-2"></i>Homepage
+            </a>
+        </div>
+
+        <div class="feedback-link">
+            <a href="{{ url_for('feedback') }}">
+                <i class="bi bi-chat-left-dots"></i> Share your feedback about the platform
+            </a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,309 @@
+{% extends "unified_dashboard/layout_with_sidebar.html" %}
+
+{% block title %}Account Integration | Growth Accelerator Staffing{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12 text-center">
+            <h1 class="display-5 mb-3">
+                <img  loading="lazy"src="/static/logo-blue.png" alt="GA Logo" height="50" class="me-3">Account Integration
+            </h1>
+            <p class="lead">Integration guide for the Growth Accelerator Staffing API</p>
+        </div>
+    </div>
+
+    <div class="row mb-5">
+        <div class="col-md-10 mx-auto">
+            <div class="card mb-4">
+                <div class="card-header text-white" style="background-color: var(--bs-purple);">
+                    <h5 class="mb-0">API Overview</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        The Growth Accelerator Staffing API provides a unified endpoint for account integration. 
+                        This single endpoint enables seamless management of the entire consultant staffing process.
+                    </p>
+                    
+                    <div class="alert alert-dark">
+                        <h6 class="mb-2">Unified API Endpoint:</h6>
+                        <code>https://www.growthaccelerator.nl/api</code>
+                    </div>
+                    
+                    <p>
+                        All API requests should be made using HTTP POST with a JSON request body.
+                        The API follows a resource/action pattern where you specify:
+                    </p>
+                    
+                    <ul>
+                        <li><strong>resource</strong>: The type of data you want to work with (consultants, matching, placements, onboarding)</li>
+                        <li><strong>action</strong>: The operation to perform (list, get, create, update)</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header text-white" style="background-color: var(--bs-purple);">
+                    <h5 class="mb-0">Authentication</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Currently, the API does not require authentication for demonstration purposes.
+                        In a production environment, authentication would be implemented using API keys or OAuth tokens.
+                    </p>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header text-white" style="background-color: var(--bs-purple);">
+                    <h5 class="mb-0">Resources & Actions</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="mb-3">Resource: consultants</h6>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Action</th>
+                                <th>Description</th>
+                                <th>Required Parameters</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>list</code></td>
+                                <td>List consultants with optional filtering</td>
+                                <td>None (Optional: status, skill_id, page, per_page)</td>
+                            </tr>
+                            <tr>
+                                <td><code>get</code></td>
+                                <td>Get detailed consultant information</td>
+                                <td>consultant_id</td>
+                            </tr>
+                            <tr>
+                                <td><code>create</code></td>
+                                <td>Create a new consultant</td>
+                                <td>first_name, last_name, email (Optional: phone, hourly_rate, skills)</td>
+                            </tr>
+                            <tr>
+                                <td><code>update</code></td>
+                                <td>Update consultant information</td>
+                                <td>consultant_id (Optional: any fields to update)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4 mb-3">Resource: matching</h6>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Action</th>
+                                <th>Description</th>
+                                <th>Required Parameters</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>find_matches</code></td>
+                                <td>Find potential consultant matches for a job</td>
+                                <td>job_id</td>
+                            </tr>
+                            <tr>
+                                <td><code>create_match</code></td>
+                                <td>Create a match (application)</td>
+                                <td>consultant_id, job_id (Optional: notes)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4 mb-3">Resource: placements</h6>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Action</th>
+                                <th>Description</th>
+                                <th>Required Parameters</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>list</code></td>
+                                <td>List placements with optional filtering</td>
+                                <td>None (Optional: status, consultant_id, client_id, page, per_page)</td>
+                            </tr>
+                            <tr>
+                                <td><code>get</code></td>
+                                <td>Get detailed placement information</td>
+                                <td>placement_id</td>
+                            </tr>
+                            <tr>
+                                <td><code>create</code></td>
+                                <td>Create a new placement</td>
+                                <td>application_id, hourly_rate, client_bill_rate (Optional: start_date, end_date, status)</td>
+                            </tr>
+                            <tr>
+                                <td><code>update</code></td>
+                                <td>Update placement information</td>
+                                <td>placement_id (Optional: any fields to update)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <h6 class="mt-4 mb-3">Resource: onboarding</h6>
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Action</th>
+                                <th>Description</th>
+                                <th>Required Parameters</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>list</code></td>
+                                <td>List onboarding data with optional filtering</td>
+                                <td>None (Optional: consultant_id, onboarding_complete, page, per_page)</td>
+                            </tr>
+                            <tr>
+                                <td><code>create</code></td>
+                                <td>Create a new onboarding record</td>
+                                <td>consultant_id (Optional: tax_id, address, banking info, etc.)</td>
+                            </tr>
+                            <tr>
+                                <td><code>update</code></td>
+                                <td>Update onboarding information</td>
+                                <td>onboarding_id (Optional: any fields to update)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header text-white" style="background-color: var(--bs-purple);">
+                    <h5 class="mb-0">Example Requests & Responses</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="mb-3">Example 1: List Consultants</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="alert alert-dark">
+                                <h6 class="mb-2">Request:</h6>
+                                <pre class="bg-dark text-light p-3 rounded">
+POST /api
+Content-Type: application/json
+
+{
+  "action": "list",
+  "resource": "consultants",
+  "status": "active"
+}</pre>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="alert alert-dark">
+                                <h6 class="mb-2">Response:</h6>
+                                <pre class="bg-dark text-light p-3 rounded">
+{
+  "consultants": [
+    {
+      "id": 1,
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "john@example.com",
+      "status": "active",
+      "hourly_rate": 75.0,
+      "skills": [
+        {
+          "id": 1,
+          "name": "Python"
+        },
+        {
+          "id": 3,
+          "name": "React"
+        }
+      ]
+    },
+    ...
+  ],
+  "page": 1,
+  "per_page": 20,
+  "total": 5
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h6 class="mt-4 mb-3">Example 2: Create a Match</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="alert alert-dark">
+                                <h6 class="mb-2">Request:</h6>
+                                <pre class="bg-dark text-light p-3 rounded">
+POST /api
+Content-Type: application/json
+
+{
+  "action": "create_match",
+  "resource": "matching",
+  "consultant_id": 1,
+  "job_id": 3,
+  "notes": "Good fit for this role"
+}</pre>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="alert alert-dark">
+                                <h6 class="mb-2">Response:</h6>
+                                <pre class="bg-dark text-light p-3 rounded">
+{
+  "application_id": 12,
+  "message": "Match created successfully",
+  "status": "new"
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header text-white" style="background-color: var(--bs-purple);">
+                    <h5 class="mb-0">Error Handling</h5>
+                </div>
+                <div class="card-body">
+                    <p>
+                        When an error occurs, the API will return an appropriate HTTP status code along with an error message in the response body.
+                    </p>
+                    
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Status Code</th>
+                                <th>Description</th>
+                                <th>Example</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>400</td>
+                                <td>Bad Request - Missing or invalid parameters</td>
+                                <td><code>{"error": "consultant_id is required"}</code></td>
+                            </tr>
+                            <tr>
+                                <td>404</td>
+                                <td>Not Found - Resource not found</td>
+                                <td><code>{"error": "Consultant with ID 123 not found"}</code></td>
+                            </tr>
+                            <tr>
+                                <td>500</td>
+                                <td>Server Error - Something went wrong on the server</td>
+                                <td><code>{"error": "Internal server error"}</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

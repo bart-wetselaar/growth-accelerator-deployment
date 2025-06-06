@@ -1,0 +1,39 @@
+name: Deploy to GA Web App (Fixed)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Create deployment package
+      run: |
+        mkdir -p ga_package
+        cp main.py app.py staffing_app.py models.py requirements.txt ga_package/
+        cp -r static templates ga_package/ || true
+        echo "gunicorn --bind 0.0.0.0:8000 --timeout 600 main:app" > ga_package/startup.txt
+        
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: 'ga'
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: './ga_package'
+        startup-command: 'gunicorn --bind 0.0.0.0:8000 --timeout 600 main:app'
